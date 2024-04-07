@@ -1,0 +1,18 @@
+#+PROPERTY: header-args :tangle yes
+* tjjhmacs
+My personal Emacs configuration.
+** Package Configuration
+#+BEGIN_SRC emacs-lisp
+  (require 'use-package-ensure)
+  (setq use-package-always-ensure t)
+#+END_SRC
+** Evil
+#+BEGIN_SRC emacs-lisp
+  (use-package evil
+    :config (evil-mode 1))
+#+END_SRC
+** User Interface
+#+BEGIN_SRC emacs-lisp
+  (use-package dracula-theme
+    :config (load-theme 'dracula t))
+#+END_SRC
