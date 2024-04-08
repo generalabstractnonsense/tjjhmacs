@@ -1,18 +1,229 @@
 #+PROPERTY: header-args :tangle yes
+#+auto_tangle: t
 * tjjhmacs
 My personal Emacs configuration.
 ** Package Configuration
-#+BEGIN_SRC emacs-lisp
+*** MELPA
+Emacs comes with a builtin package (or plugin) manager, package.el,
+but the default package archives (or repositories) are somewhat
+conservative. MELPA (Milkypostman’s Emacs Lisp Package Archive) hosts
+thousands of additional packages.
+#+begin_src emacs-lisp
+  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+#+end_src
+*** Use Package Always Ensure
+use-package is a macro for simplifying package configuration. By
+default it doesn't download packages for you, but it will if you give
+it the option :ensure t, or set it to always ensure.
+#+begin_src emacs-lisp
   (require 'use-package-ensure)
   (setq use-package-always-ensure t)
-#+END_SRC
+#+end_src
+*** General
+general.el provides a more convenient method for binding keys in Emacs
+(for both evil and non-evil users).  It is required here early so it can
+be used in the configuration of other packages.
+#+begin_src emacs-lisp
+  (use-package general)
+#+end_src
+** Helpers
+Configuration helper macros.
+#+begin_src emacs-lisp
+  (defmacro after! (pkg &rest body)
+    "Like with-eval-after-load, but shorter and pkg does not need parenthesis"
+    `(with-eval-after-load ,(symbol-name pkg) ,@body))
+
+  (defmacro general-config! (pkg &rest body)
+    "Equivalent to (after! pkg (general-def body))"
+    `(after! pkg (general-def ,@body)))
+
+  (defmacro hook! (hook fn)
+    "Like add-hook, but hook does not need to be quoted and has -hook appended"
+    (let ((hook-name (intern (concat (symbol-name hook) "-hook"))))
+      `(add-hook ',hook-name ,fn)))
+#+end_src
 ** Evil
-#+BEGIN_SRC emacs-lisp
-  (use-package evil
-    :config (evil-mode 1))
-#+END_SRC
+An extensible vi layer for Emacs. The joke that Emacs is a fine operating system
+in desperate need of a good text editor is likely older than I am, but with Evil
+we have a better vi than vi itself, taking full advantage of Emacs' legendary
+customization and self-documentation.
+*** Settings
+Evil's behavior can be adjusted by setting some variables. These should be set
+before loading Evil as some affect how Evil is loaded.
+**** Ctrl-u
+By default Evil does not rebind C-u because it would make Emacs' universal
+argument inconvenient. I don't find myself using it very often and prefer having
+the vi bindings available.
+#+begin_src emacs-lisp
+  (setq evil-want-C-u-delete t
+	evil-want-C-u-scroll t)
+#+end_src
+**** Yank to EOL with Y
+For historical reasons in vi's normal mode Y is the same as yy rather than y$,
+which would be more consistent with D and C and arguably more useful. Vim has
+long had a configuration option to fix this, as does Evil.
+#+begin_src emacs-lisp
+  (setq evil-want-Y-yank-to-eol t)
+#+end_src
+**** Fine Undo
+By default all changes made in insert state are grouped into a single undo step,
+which can be inconvenient. Fine undo will split inserts into multiple steps.
+#+begin_src emacs-lisp
+  (setq evil-want-fine-undo t)
+#+end_src
+**** Minibuffer
+By default Evil is not enabled in the minibuffer, but I sometimes find
+it useful to edit what I have typed without having to start over.
+#+begin_src emacs-lisp
+  (setq evil-want-minibuffer t)
+#+end_src
+**** Evil Keybindings
+By default Evil loads keybindings and default states for certain modes
+that aren't focused on text editing. Evil Collection does a much more
+thorough job of this but requires us to disable this setting to avoid
+conflicts.
+#+begin_src emacs-lisp
+  (setq evil-want-keybinding nil)
+#+end_src
+*** Installation
+#+begin_src emacs-lisp
+  (use-package evil :config (evil-mode))
+#+end_src
+*** Plugins
+Evil is great out of the box, but there are dozens (at least) of great Emacs
+packages that make it even better.
+**** Evil Collection
+A collection of Evil bindings for the parts of Emacs that Evil does
+not cover properly by default, such as help-mode, M-x calendar, Eshell
+and more. Evil Collection also has some optional configuration,
+including setting up keybindings for the minibuffer.
+#+begin_src emacs-lisp
+  (use-package evil-collection
+    :custom (evil-collection-setup-minibuffer t)
+    :config (evil-collection-init))
+#+end_src
+**** evil-surround
+You will be surrounded (surround.vim for evil, the extensible vi
+layer). This package makes it trivially easy to modify, add, or delete
+"surroundings" like parenthesis, brackets, quotes, and tags. 
+#+begin_src emacs-lisp
+  (use-package evil-surround
+    :config (global-evil-surround-mode))
+#+end_src
+Originally surround.vim (and thus evil-surround) bound s in visual
+state, but some users found this confusing because s already means
+substitute so it was changed to S. Like many others I rarely use s and
+prefer the original (surround) bindings. In many cases, including
+visual state, s and c (change) do the same thing, although in normal
+mode S is the same as cc rather than C for some reason, and the
+primary use case for s, deleting one character and then entering
+insert mode, isn't that useful (in my opinion).
+#+begin_src emacs-lisp
+  (general-config! evil-surround :states 'visual
+		  "s" #'evil-surround-region
+		  "S" #'evil-Surround-region)
+#+end_src
+**** evil-commentary
+Comment stuff out; a port of vim-commentary. Adds the gc comment
+operator. gcc comments a line, gcap a paragraph, and just gc comments
+out a visual selection.
+#+begin_src emacs-lisp
+  (use-package evil-commentary :config (evil-commentary-mode))
+#+end_src
+**** evil-matchit
+Vim matchit ported into Emacs. Extends % to match a much wider variety
+of "tags", such as html/xml tags, with support for several programming
+languages. Also adds a % text object.
+#+begin_src emacs-lisp
+  (use-package evil-matchit :config (global-evil-matchit-mode))
+#+end_src
+**** evil-exchange
+Port of vim-exchange. Adds a text exchange operator gx.
+#+begin_src emacs-lisp
+  (use-package evil-exchange :config (evil-exchange-install))
+#+end_src
+**** evil-args
+Motions and text objects for delimited arguments in Evil. Useful in
+non-lisp programming languages.
+#+begin_src emacs-lisp
+  (use-package evil-args
+    :general
+    (:keymaps 'evil-inner-text-objects-map "a" #'evil-inner-arg)
+    (:keymaps 'evil-outer-text-objects-map "a" #'evil-outer-arg)
+    (:states '(normal motion)
+	     "L" #'evil-forward-arg
+	     "H" #'evil-backward-arg))
+#+end_src
+**** evil-visualstar
+Start a * or # search from the visual selection.
+#+begin_src emacs-lisp
+  (use-package evil-visualstar :config (global-evil-visualstar-mode))
+#+end_src
+**** evil-snipe
+2-char searching ala vim-sneak & vim-seek, for evil-mode. Type s/S for
+a 2 character versin of f/F. Clobbers the substitute commands, but as
+I mentioned in the section on evil-surround I don't think those are
+very useful anyways.
+#+begin_src emacs-lisp
+  (use-package evil-snipe :config (evil-snipe-mode))
+#+end_src
+By default, pressing s/S again after a search repeats that search. I
+guess some people don't like using ;, but I find this behaviour
+confusing and disable it.
+#+begin_src emacs-lisp
+  (setq evil-snipe-repeat-keys nil)
+#+end_src
+*** God Mode
+Described as a minor mode for God-like command entering, this is not
+strictly speaking related to Evil, but provides a method for entering
+Emacs commands which normally require the control and alt keys without
+them, thus being somewhat similar to vi's modal editing. This makes it
+easy to use both builtin Emacs commands and commands from packages not
+designed to work with Evil without either RSI or having to come up
+with new keybindings. Using space as a shortcut key makes it work
+similar to Spacemacs or the leader key from Vim, and setting
+Shift-Space as a backup makes it easy to use even in insert
+mode. Finally u is set to universal argument when using God Mode.
+#+begin_src emacs-lisp
+  (use-package god-mode
+    :general
+    ("S-SPC" #'god-execute-with-current-bindings)
+    (:states '(normal visual) "SPC" #'god-execute-with-current-bindings)
+    :general-config
+    (:keymaps 'god-local-mode-map "C-u" #'universal-argument))
+#+end_src
 ** User Interface
-#+BEGIN_SRC emacs-lisp
+#+begin_src emacs-lisp
   (use-package dracula-theme
     :config (load-theme 'dracula t))
-#+END_SRC
+#+end_src
+#+begin_src emacs-lisp
+  (use-package dashboard :config (dashboard-setup-startup-hook))
+#+end_src
+#+begin_src emacs-lisp
+  (menu-bar-mode -1)
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+#+end_src
+** Miscellaneus Settinsg
+#+begin_src emacs-lisp
+  (setq native-comp-async-report-warnings-errors 'silent)
+#+end_src
+#+begin_src emacs-lisp
+  (setq fill-column 80)
+#+end_src
+#+begin_src emacs-lisp
+  (setq help-window-select t)
+#+end_src
+#+begin_src emacs-lisp
+  (save-place-mode)
+#+end_src
+#+begin_src emacs-lisp
+  (setq inhibit-startup-message t)
+#+end_src
+#+begin_src emacs-lisp
+  (use-package org-auto-tangle :ghook 'org-mode-hook)
+#+end_src
+#+begin_src emacs-lisp
+  (hook! emacs-startup #'toggle-frame-maximized)
+#+end_src
